@@ -143,6 +143,9 @@ type Pinger struct {
 	// Number of duplicate packets received
 	PacketsRecvDuplicates int
 
+	// ResetOnRun allow reset channel, packet counter on every run
+	ResetOnRun bool
+
 	// Round trip time statistics
 	minRtt    time.Duration
 	maxRtt    time.Duration
@@ -435,6 +438,10 @@ func (p *Pinger) run(conn packetConn) error {
 		handler()
 	}
 
+	if p.ResetOnRun {
+		p.Reset()
+	}
+
 	var g errgroup.Group
 
 	g.Go(func() error {
@@ -547,6 +554,23 @@ func (p *Pinger) Statistics() *Statistics {
 		StdDevRtt:             p.stdDevRtt,
 	}
 	return &s
+}
+
+// Reset will reset packet counter
+func (p *Pinger) Reset() {
+	p.done = make(chan interface{})
+	p.rtts = make([]time.Duration, 0)
+	p.PacketsSent = 0
+	p.PacketsRecv = 0
+
+	// Reset sequence
+	newUUID := uuid.New()
+	p.trackerUUIDs = []uuid.UUID{newUUID}
+	p.sequence = 0
+
+	var newSequence = map[uuid.UUID]map[int]struct{}{}
+	newSequence[newUUID] = make(map[int]struct{})
+	p.awaitingSequences = newSequence
 }
 
 type expBackoff struct {
